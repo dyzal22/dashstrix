@@ -60,12 +60,16 @@ class PythonInstance:
     def _setup_execution_environment(self, timeout: int) -> tuple[Any, io.StringIO, io.StringIO]:
         stdout_capture = io.StringIO()
         stderr_capture = io.StringIO()
+        old_handler = None
 
         def timeout_handler(signum: int, frame: Any) -> None:
             raise TimeoutError(f"Code execution timed out after {timeout} seconds")
 
-        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
+        try:
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
+        except ValueError:
+            pass
 
         sys.stdout = stdout_capture
         sys.stderr = stderr_capture
@@ -75,7 +79,11 @@ class PythonInstance:
     def _cleanup_execution_environment(
         self, old_handler: Any, old_stdout: Any, old_stderr: Any
     ) -> None:
-        signal.signal(signal.SIGALRM, old_handler)
+        if old_handler:
+            try:
+                signal.signal(signal.SIGALRM, old_handler)
+            except ValueError:
+                pass
         sys.stdout = old_stdout
         sys.stderr = old_stderr
 
@@ -151,14 +159,20 @@ class PythonInstance:
 
                 try:
                     execution_result = self.shell.run_cell(code, silent=False, store_history=True)
-                    signal.alarm(0)
+                    try:
+                        signal.alarm(0)
+                    except ValueError:
+                        pass
 
                     return self._format_execution_result(
                         execution_result, stdout_capture.getvalue(), stderr_capture.getvalue()
                     )
 
                 except (TimeoutError, KeyboardInterrupt, SystemExit) as e:
-                    signal.alarm(0)
+                    try:
+                        signal.alarm(0)
+                    except ValueError:
+                        pass
                     return self._handle_execution_error(e)
 
             finally:

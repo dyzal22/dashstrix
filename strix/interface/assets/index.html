@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DashStrix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        .terminal {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            height: 300px;
+            overflow-y: auto;
+        }
+        .scrollable-list {
+            height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <header class="flex items-center justify-between mb-8">
+            <div class="flex items-center">
+                <h1 class="text-3xl font-bold text-green-500 mr-4">DashStrix</h1>
+                <span class="bg-gray-800 text-xs px-2 py-1 rounded border border-gray-700">v0.4.1</span>
+            </div>
+            <div>
+                <span v-if="loading" class="text-yellow-400 animate-pulse">Scanning...</span>
+                <span v-else-if="status === 'completed'" class="text-green-400">Scan Completed</span>
+                <span v-else-if="status === 'failed'" class="text-red-400">Scan Failed</span>
+                <span v-else class="text-gray-400">Ready</span>
+            </div>
+        </header>
+
+        <!-- Input Section -->
+        <div class="bg-gray-800 rounded-lg p-6 mb-8 shadow-lg border border-gray-700">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Target</label>
+                    <input v-model="target" type="text" placeholder="e.g., https://example.com"
+                        class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Instructions (Optional)</label>
+                    <input v-model="instruction" type="text" placeholder="e.g., Focus on SQL Injection"
+                        class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                 <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Model Name</label>
+                    <input v-model="model" type="text" placeholder="gemini/gemini-1.5-pro"
+                        class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">API Key</label>
+                    <input v-model="apiKey" type="password" placeholder="AIzaSy..."
+                        class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button @click="startScan" :disabled="loading || !target"
+                    class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    Start Scan
+                </button>
+                <button @click="stopScan" v-if="loading"
+                    class="ml-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition">
+                    Stop
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+
+            <!-- Vulnerabilities -->
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col">
+                <h2 class="text-xl font-semibold mb-4 text-red-400 flex items-center">
+                    <span class="mr-2">🛡️</span> Vulnerabilities Found
+                    <span class="ml-auto bg-red-900 text-red-200 text-xs px-2 py-1 rounded-full">{{ vulnerabilities.length }}</span>
+                </h2>
+                <div class="scrollable-list space-y-3">
+                    <div v-if="vulnerabilities.length === 0" class="text-gray-500 text-center mt-10 italic">
+                        No vulnerabilities found yet.
+                    </div>
+                    <div v-for="vuln in vulnerabilities" :key="vuln.id" class="bg-gray-900 p-4 rounded border border-gray-700 hover:border-red-500 transition cursor-pointer">
+                        <div class="flex justify-between items-start">
+                            <h3 class="font-bold text-white">{{ vuln.title }}</h3>
+                            <span :class="{
+                                'bg-red-900 text-red-200': vuln.severity === 'critical',
+                                'bg-orange-900 text-orange-200': vuln.severity === 'high',
+                                'bg-yellow-900 text-yellow-200': vuln.severity === 'medium',
+                                'bg-blue-900 text-blue-200': vuln.severity === 'low'
+                            }" class="text-xs px-2 py-1 rounded uppercase font-bold">{{ vuln.severity }}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">{{ vuln.timestamp }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Activities -->
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col">
+                <h2 class="text-xl font-semibold mb-4 text-blue-400 flex items-center">
+                    <span class="mr-2">🤖</span> Agent Activities
+                </h2>
+                 <div class="scrollable-list space-y-3">
+                    <div v-if="activities.length === 0" class="text-gray-500 text-center mt-10 italic">
+                        Agents are idle.
+                    </div>
+                    <div v-for="activity in activities" :key="activity.agent" class="bg-gray-900 p-3 rounded border border-gray-700">
+                        <div class="flex justify-between items-center mb-2">
+                             <span class="font-bold text-sm text-blue-300">{{ activity.agent }}</span>
+                             <span :class="{
+                                'text-green-400': activity.status === 'running',
+                                'text-gray-400': activity.status === 'completed',
+                                'text-red-400': activity.status === 'failed',
+                                'text-yellow-400': activity.status === 'waiting'
+                            }" class="text-xs font-mono">{{ activity.status }}</span>
+                        </div>
+                        <p class="text-xs text-gray-400">{{ activity.task }}</p>
+                        <p v-if="activity.error" class="text-xs text-red-400 mt-1">{{ activity.error }}</p>
+                    </div>
+                 </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Tool Executions -->
+             <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col">
+                <h2 class="text-xl font-semibold mb-4 text-purple-400 flex items-center">
+                    <span class="mr-2">🔧</span> Recent Tool Executions
+                </h2>
+                 <div class="scrollable-list space-y-2">
+                    <div v-if="toolExecutions.length === 0" class="text-gray-500 text-center mt-10 italic">
+                        No tools executed yet.
+                    </div>
+                    <div v-for="exec in toolExecutions" :key="exec.id" class="bg-gray-900 p-2 rounded border border-gray-700 text-xs font-mono">
+                        <div class="flex justify-between">
+                            <span class="text-purple-300">{{ exec.tool }}</span>
+                            <span :class="{
+                                'text-green-400': exec.status === 'completed',
+                                'text-red-400': exec.status === 'failed',
+                                'text-yellow-400': exec.status === 'running'
+                            }">{{ exec.status }}</span>
+                        </div>
+                        <div class="text-gray-500 truncate mt-1">{{ exec.args }}</div>
+                        <div v-if="exec.result" class="text-gray-600 truncate mt-1">-> {{ exec.result }}</div>
+                    </div>
+                 </div>
+             </div>
+
+            <!-- Logs -->
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col">
+                <h2 class="text-xl font-semibold mb-4 text-gray-400 flex items-center">
+                    <span class="mr-2">📝</span> Logs
+                </h2>
+                <div class="terminal flex-grow" ref="logContainer">
+                    <div v-if="logs.length === 0" class="text-gray-500 italic">Waiting for logs...</div>
+                    <div v-for="(log, index) in logs" :key="index" class="text-sm font-mono whitespace-pre-wrap mb-1">{{ log }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, watch } = Vue
+
+        createApp({
+            setup() {
+                const target = ref('')
+                const instruction = ref('')
+                const apiKey = ref('')
+                const model = ref('gemini/gemini-1.5-pro')
+                const loading = ref(false)
+                const logs = ref([])
+                const vulnerabilities = ref([])
+                const activities = ref([])
+                const toolExecutions = ref([])
+                const status = ref('idle')
+                const logContainer = ref(null)
+                let pollInterval = null
+
+                const startScan = async () => {
+                    try {
+                        loading.value = true
+                        status.value = 'starting'
+                        logs.value = ['Starting scan...']
+                        vulnerabilities.value = []
+                        activities.value = []
+                        toolExecutions.value = []
+
+                        const response = await fetch('/api/scan/start', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                target: target.value,
+                                instruction: instruction.value,
+                                api_key: apiKey.value,
+                                model: model.value
+                            })
+                        })
+
+                        if (!response.ok) {
+                            throw new Error('Failed to start scan')
+                        }
+
+                        startPolling()
+                    } catch (e) {
+                        console.error(e)
+                        logs.value.push(`Error: ${e.message}`)
+                        loading.value = false
+                        status.value = 'error'
+                    }
+                }
+
+                const stopScan = async () => {
+                    try {
+                        await fetch('/api/scan/stop', { method: 'POST' })
+                        loading.value = false
+                        stopPolling()
+                        logs.value.push('Scan stopped by user.')
+                    } catch (e) {
+                        console.error(e)
+                    }
+                }
+
+                const pollStatus = async () => {
+                    try {
+                        const response = await fetch('/api/scan/status')
+                        const data = await response.json()
+
+                        loading.value = data.running
+                        status.value = data.status
+                        vulnerabilities.value = data.vulnerabilities || []
+                        activities.value = data.activities || []
+                        toolExecutions.value = data.tool_executions || []
+
+                        if (data.logs && data.logs.length > 0) {
+                             logs.value = data.logs
+                        }
+
+                        if (!data.running && data.status !== 'starting') {
+                            stopPolling()
+                        }
+                    } catch (e) {
+                        console.error('Polling error', e)
+                    }
+                }
+
+                const startPolling = () => {
+                    stopPolling()
+                    pollInterval = setInterval(pollStatus, 2000)
+                }
+
+                const stopPolling = () => {
+                    if (pollInterval) {
+                        clearInterval(pollInterval)
+                        pollInterval = null
+                    }
+                }
+
+                // Auto-scroll logs
+                watch(logs, () => {
+                    if (logContainer.value) {
+                         setTimeout(() => {
+                            logContainer.value.scrollTop = logContainer.value.scrollHeight
+                         }, 100)
+                    }
+                }, { deep: true })
+
+                return {
+                    target,
+                    instruction,
+                    apiKey,
+                    model,
+                    loading,
+                    logs,
+                    vulnerabilities,
+                    activities,
+                    toolExecutions,
+                    status,
+                    startScan,
+                    stopScan,
+                    logContainer
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

@@ -195,8 +195,11 @@ def signal_handler(_signum: int, _frame: Any) -> None:
 if hasattr(signal, "SIGPIPE"):
     signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
-signal.signal(signal.SIGTERM, signal_handler)
-signal.signal(signal.SIGINT, signal_handler)
+try:
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+except ValueError:
+    pass
 
 if __name__ == "__main__":
     try:
