@@ -80,22 +80,20 @@ strix --target ./app-directory
 ```
 
 > [!NOTE]
-> First run automatically pulls the sandbox Docker image. Results are saved to `agent_runs/<run-name>`
+> First run automatically pulls the sandbox Docker image. Results are saved to `strix_runs/<run-name>`
 
-## 🏆 Enterprise Platform
+## ☁️ Run Strix in Cloud
 
-Want to skip the setup? Try our cloud-hosted version at **[usestrix.com](https://usestrix.com)**
+Want to skip the local setup, API keys, and unpredictable LLM costs? Run the hosted cloud version of Strix at **[app.usestrix.com](https://usestrix.com)**.
 
-Our managed platform provides:
+Launch a scan in just a few minutes—no setup or configuration required—and you’ll get:
 
-- **📈 Executive Dashboards**
-- **🧠 Custom Fine-Tuned Models**
-- **⚙️ CI/CD Integration**
-- **🔍 Large-Scale Scanning**
-- **🔌 Third-Party Integrations**
-- **🎯 Enterprise Support**
+- **A full pentest report** with validated findings and clear remediation steps
+- **Shareable dashboards** your team can use to track fixes over time
+- **CI/CD and GitHub integrations** to block risky changes before production
+- **Continuous monitoring** so new vulnerabilities are caught quickly
 
-[**Get Enterprise Demo →**](https://usestrix.com)
+[**Run your first pentest now →**](https://usestrix.com)
 
 ---
 
@@ -161,6 +159,9 @@ strix -t https://github.com/org/app -t https://your-app.com
 
 # Focused testing with custom instructions
 strix --target api.your-app.com --instruction "Focus on business logic flaws and IDOR vulnerabilities"
+
+# Provide detailed instructions through file (e.g., rules of engagement, scope, exclusions)
+strix --target api.your-app.com --instruction-file ./instruction.md
 ```
 
 ### 🤖 Headless Mode
@@ -209,25 +210,11 @@ export LLM_API_BASE="your-api-base-url"  # if using a local model, e.g. Ollama, 
 export PERPLEXITY_API_KEY="your-api-key"  # for search capabilities
 ```
 
-[OpenAI's GPT-5](https://openai.com/api/) (`openai/gpt-5`) and [Anthropic's Claude Sonnet 4.5](https://claude.com/platform/api) (`anthropic/claude-sonnet-4-5`) work best with Strix, but we support many [other options](https://docs.litellm.ai/docs/providers).
+[OpenAI's GPT-5](https://openai.com/api/) (`openai/gpt-5`) and [Anthropic's Claude Sonnet 4.5](https://claude.com/platform/api) (`anthropic/claude-sonnet-4-5`) are the recommended models for best results with Strix. We also support many [other options](https://docs.litellm.ai/docs/providers), including cloud and local models, though their performance and reliability may vary.
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! There are several ways to contribute:
-
-### Code Contributions
-See our [Contributing Guide](CONTRIBUTING.md) for details on:
-- Setting up your development environment
-- Running tests and quality checks
-- Submitting pull requests
-- Code style guidelines
-
-
-### Prompt Modules Collection
-Help expand our collection of specialized prompt modules for AI agents:
-- Advanced testing techniques for vulnerabilities, frameworks, and technologies
-- See [Prompt Modules Documentation](strix/prompts/README.md) for guidelines
-- Submit via [pull requests](https://github.com/usestrix/strix/pulls) or [issues](https://github.com/usestrix/strix/issues)
+We welcome contributions of code, docs, and new prompt modules - check out our [Contributing Guide](CONTRIBUTING.md) to get started or open a [pull request](https://github.com/usestrix/strix/pulls)/[issue](https://github.com/usestrix/strix/issues).
 
 ## 👥 Join Our Community
 
@@ -236,6 +223,10 @@ Have questions? Found a bug? Want to contribute? **[Join our Discord!](https://d
 ## 🌟 Support the Project
 
 **Love Strix?** Give us a ⭐ on GitHub!
+## 🙏 Acknowledgements
+
+Strix builds on the incredible work of open-source projects like [LiteLLM](https://github.com/BerriAI/litellm), [Caido](https://github.com/caido/caido), [ProjectDiscovery](https://github.com/projectdiscovery), [Playwright](https://github.com/microsoft/playwright), and [Textual](https://github.com/Textualize/textual). Huge thanks to their maintainers!
+
 
 > [!WARNING]
 > Only test apps you own or have permission to test. You are responsible for using Strix ethically and legally.

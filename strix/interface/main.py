@@ -10,6 +10,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 import litellm
 from docker.errors import DockerException
@@ -21,8 +22,7 @@ from strix.interface.cli import run_cli
 from strix.interface.tui import run_tui
 from strix.interface.utils import (
     assign_workspace_subdirs,
-    build_llm_stats_text,
-    build_stats_text,
+    build_final_stats_text,
     check_docker_connection,
     clone_repository,
     collect_local_sources,
@@ -57,10 +57,7 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
     )
 
     if not os.getenv("LLM_API_KEY"):
-        if not has_base_url:
-            missing_required_vars.append("LLM_API_KEY")
-        else:
-            missing_optional_vars.append("LLM_API_KEY")
+        missing_optional_vars.append("LLM_API_KEY")
 
     if not has_base_url:
         missing_optional_vars.append("LLM_API_BASE")
@@ -93,13 +90,6 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
                     " - Model name to use with litellm (e.g., 'openai/gpt-5')\n",
                     style="white",
                 )
-            elif var == "LLM_API_KEY":
-                error_text.append("• ", style="white")
-                error_text.append("LLM_API_KEY", style="bold cyan")
-                error_text.append(
-                    " - API key for the LLM provider (required for cloud providers)\n",
-                    style="white",
-                )
 
         if missing_optional_vars:
             error_text.append("\nOptional environment variables:\n", style="white")
@@ -107,7 +97,11 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
                 if var == "LLM_API_KEY":
                     error_text.append("• ", style="white")
                     error_text.append("LLM_API_KEY", style="bold cyan")
-                    error_text.append(" - API key for the LLM provider\n", style="white")
+                    error_text.append(
+                        " - API key for the LLM provider "
+                        "(not needed for local models, Vertex AI, AWS, etc.)\n",
+                        style="white",
+                    )
                 elif var == "LLM_API_BASE":
                     error_text.append("• ", style="white")
                     error_text.append("LLM_API_BASE", style="bold cyan")
@@ -126,14 +120,12 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
         error_text.append("\nExample setup:\n", style="white")
         error_text.append("export STRIX_LLM='openai/gpt-5'\n", style="dim white")
 
-        if "LLM_API_KEY" in missing_required_vars:
-            error_text.append("export LLM_API_KEY='your-api-key-here'\n", style="dim white")
-
         if missing_optional_vars:
             for var in missing_optional_vars:
                 if var == "LLM_API_KEY":
                     error_text.append(
-                        "export LLM_API_KEY='your-api-key-here'  # optional with local models\n",
+                        "export LLM_API_KEY='your-api-key-here'  "
+                        "# not needed for local models, Vertex AI, AWS, etc.\n",
                         style="dim white",
                     )
                 elif var == "LLM_API_BASE":
@@ -190,18 +182,12 @@ async def warm_up_llm() -> None:
     try:
         model_name = os.getenv("STRIX_LLM", "openai/gpt-5")
         api_key = os.getenv("LLM_API_KEY")
-
-        if api_key:
-            litellm.api_key = api_key
-
         api_base = (
             os.getenv("LLM_API_BASE")
             or os.getenv("OPENAI_API_BASE")
             or os.getenv("LITELLM_BASE_URL")
             or os.getenv("OLLAMA_API_BASE")
         )
-        if api_base:
-            litellm.api_base = api_base
 
         test_messages = [
             {"role": "system", "content": "You are a helpful assistant."},
@@ -210,11 +196,17 @@ async def warm_up_llm() -> None:
 
         llm_timeout = int(os.getenv("LLM_TIMEOUT", "600"))
 
-        response = litellm.completion(
-            model=model_name,
-            messages=test_messages,
-            timeout=llm_timeout,
-        )
+        completion_kwargs: dict[str, Any] = {
+            "model": model_name,
+            "messages": test_messages,
+            "timeout": llm_timeout,
+        }
+        if api_key:
+            completion_kwargs["api_key"] = api_key
+        if api_base:
+            completion_kwargs["api_base"] = api_base
+
+        response = litellm.completion(**completion_kwargs)
 
         validate_llm_response(response)
 
@@ -267,8 +259,12 @@ Examples:
   strix --target https://github.com/user/repo --target https://example.com
   strix --target ./my-project --target https://staging.example.com --target https://prod.example.com
 
-  # Custom instructions
+  # Custom instructions (inline)
   strix --target example.com --instruction "Focus on authentication vulnerabilities"
+
+  # Custom instructions (from file)
+  strix --target example.com --instruction-file ./instructions.txt
+  strix --target https://app.com --instruction-file /path/to/detailed_instructions.md
         """,
     )
 
@@ -289,7 +285,15 @@ Examples:
         "testing approaches (e.g., 'Perform thorough authentication testing'), "
         "test credentials (e.g., 'Use the following credentials to access the app: "
         "admin:password123'), "
-        "or areas of interest (e.g., 'Check login API endpoint for security issues')",
+        "or areas of interest (e.g., 'Check login API endpoint for security issues').",
+    )
+
+    parser.add_argument(
+        "--instruction-file",
+        type=str,
+        help="Path to a file containing detailed custom instructions for the penetration test. "
+        "Use this option when you have lengthy or complex instructions saved in a file "
+        "(e.g., '--instruction-file ./detailed_instructions.txt').",
     )
 
     parser.add_argument(
@@ -309,6 +313,19 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    if args.instruction and args.instruction_file:
+        parser.error("Cannot specify both --instruction and --instruction-file. Use one or the other.")
+
+    if args.instruction_file:
+        instruction_path = Path(args.instruction_file)
+        try:
+            with instruction_path.open(encoding="utf-8") as f:
+                args.instruction = f.read().strip()
+                if not args.instruction:
+                    parser.error(f"Instruction file '{instruction_path}' is empty")
+        except Exception as e:
+            parser.error(f"Failed to read instruction file '{instruction_path}': {e}")
 
     args.targets_info = []
     for target in args.target:
@@ -353,8 +370,7 @@ def display_completion_message(args: argparse.Namespace, results_path: Path) -> 
         completion_text.append(" • ", style="dim white")
         completion_text.append("Penetration test interrupted by user", style="white")
 
-    stats_text = build_stats_text(tracer)
-    llm_stats_text = build_llm_stats_text(tracer)
+    stats_text = build_final_stats_text(tracer)
 
     target_text = Text()
     if len(args.targets_info) == 1:
@@ -373,9 +389,6 @@ def display_completion_message(args: argparse.Namespace, results_path: Path) -> 
 
     if stats_text.plain:
         panel_parts.extend(["\n", stats_text])
-
-    if llm_stats_text.plain:
-        panel_parts.extend(["\n", llm_stats_text])
 
     if scan_completed or has_vulnerabilities:
         results_text = Text()
@@ -459,7 +472,7 @@ def main() -> None:
     asyncio.run(warm_up_llm())
 
     if not args.run_name:
-        args.run_name = generate_run_name()
+        args.run_name = generate_run_name(args.targets_info)
 
     for target_info in args.targets_info:
         if target_info["type"] == "repository":
@@ -475,7 +488,7 @@ def main() -> None:
     else:
         asyncio.run(run_tui(args))
 
-    results_path = Path("agent_runs") / args.run_name
+    results_path = Path("strix_runs") / args.run_name
     display_completion_message(args, results_path)
 
     if args.non_interactive:

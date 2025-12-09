@@ -13,7 +13,7 @@ from jinja2 import (
     select_autoescape,
 )
 from litellm import ModelResponse, completion_cost
-from litellm.utils import supports_prompt_caching
+from litellm.utils import supports_prompt_caching, supports_vision
 
 from strix.llm.config import LLMConfig
 from strix.llm.memory_compressor import MemoryCompressor
@@ -25,18 +25,16 @@ from strix.tools import get_tools_prompt
 
 logger = logging.getLogger(__name__)
 
-api_key = os.getenv("LLM_API_KEY")
-if api_key:
-    litellm.api_key = api_key
+litellm.drop_params = True
+litellm.modify_params = True
 
-api_base = (
+_LLM_API_KEY = os.getenv("LLM_API_KEY")
+_LLM_API_BASE = (
     os.getenv("LLM_API_BASE")
     or os.getenv("OPENAI_API_BASE")
     or os.getenv("LITELLM_BASE_URL")
     or os.getenv("OLLAMA_API_BASE")
 )
-if api_base:
-    litellm.api_base = api_base
 
 
 class LLMRequestFailedError(Exception):
@@ -390,15 +388,70 @@ class LLM:
 
         return model_matches(self.config.model_name, REASONING_EFFORT_PATTERNS)
 
+    def _model_supports_vision(self) -> bool:
+        if not self.config.model_name:
+            return False
+        try:
+            return bool(supports_vision(model=self.config.model_name))
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _filter_images_from_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        filtered_messages = []
+        for msg in messages:
+            content = msg.get("content")
+            updated_msg = msg
+            if isinstance(content, list):
+                filtered_content = []
+                for item in content:
+                    if isinstance(item, dict):
+                        if item.get("type") == "image_url":
+                            filtered_content.append(
+                                {
+                                    "type": "text",
+                                    "text": "[Screenshot removed - model does not support "
+                                    "vision. Use view_source or execute_js instead.]",
+                                }
+                            )
+                        else:
+                            filtered_content.append(item)
+                    else:
+                        filtered_content.append(item)
+                if filtered_content:
+                    text_parts = [
+                        item.get("text", "") if isinstance(item, dict) else str(item)
+                        for item in filtered_content
+                    ]
+                    all_text = all(
+                        isinstance(item, dict) and item.get("type") == "text"
+                        for item in filtered_content
+                    )
+                    if all_text:
+                        updated_msg = {**msg, "content": "\n".join(text_parts)}
+                    else:
+                        updated_msg = {**msg, "content": filtered_content}
+                else:
+                    updated_msg = {**msg, "content": ""}
+            filtered_messages.append(updated_msg)
+        return filtered_messages
+
     async def _make_request(
         self,
         messages: list[dict[str, Any]],
     ) -> ModelResponse:
+        if not self._model_supports_vision():
+            messages = self._filter_images_from_messages(messages)
+
         completion_args: dict[str, Any] = {
             "model": self.config.model_name,
             "messages": messages,
             "timeout": self.config.timeout,
         }
+
+        if _LLM_API_KEY:
+            completion_args["api_key"] = _LLM_API_KEY
+        if _LLM_API_BASE:
+            completion_args["api_base"] = _LLM_API_BASE
 
         if self._should_include_stop_param():
             completion_args["stop"] = ["</function>"]

@@ -17,4 +17,4 @@ class LLMConfig:
         self.enable_prompt_caching = enable_prompt_caching
         self.prompt_modules = prompt_modules or []
 
-        self.timeout = timeout or int(os.getenv("LLM_TIMEOUT", "600"))
+        self.timeout = timeout or int(os.getenv("LLM_TIMEOUT", "300"))

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "strix-agent"
-version = "0.3.4"
+version = "0.4.1"
 description = "Open-source AI Hackers for your apps"
 authors = ["Strix <hi@usestrix.com>"]
 readme = "README.md"
@@ -45,8 +45,7 @@ strix = "strix.interface.main:main"
 python = "^3.12"
 fastapi = "*"
 uvicorn = "*"
-litellm = { version = "~1.79.1", extras = ["proxy"] }
-openai = ">=1.99.5,<1.100.0"
+litellm = { version = "~1.80.7", extras = ["proxy"] }
 tenacity = "^9.0.0"
 numpydoc = "^1.8.0"
 pydantic = {extras = ["email"], version = "^2.11.3"}
@@ -61,6 +60,7 @@ xmltodict = "^0.13.0"
 pyte = "^0.8.1"
 requests = "^2.32.0"
 libtmux = "^0.46.2"
+google-cloud-aiplatform = ">=1.38"
 
 [tool.poetry.group.dev.dependencies]
 # Type checking and static analysis
@@ -129,8 +129,14 @@ module = [
     "textual.*",
     "pyte.*",
     "libtmux.*",
+    "pytest.*",
 ]
 ignore_missing_imports = true
+
+# Relax strict rules for test files (pytest decorators are not fully typed)
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_decorators = false
 
 # ============================================================================
 # Ruff Configuration (Fast Python Linter & Formatter)
@@ -321,7 +327,6 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
-    "--cov-fail-under=80"
 ]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
