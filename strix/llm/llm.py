@@ -448,8 +448,11 @@ class LLM:
             "timeout": self.config.timeout,
         }
 
-        if _LLM_API_KEY:
+        if self.config.api_key:
+            completion_args["api_key"] = self.config.api_key
+        elif _LLM_API_KEY:
             completion_args["api_key"] = _LLM_API_KEY
+
         if _LLM_API_BASE:
             completion_args["api_base"] = _LLM_API_BASE
 

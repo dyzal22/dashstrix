@@ -324,11 +324,14 @@ class BrowserTabManager:
     def _register_cleanup_handlers(self) -> None:
         atexit.register(self.close_all)
 
-        signal.signal(signal.SIGTERM, self._signal_handler)
-        signal.signal(signal.SIGINT, self._signal_handler)
+        try:
+            signal.signal(signal.SIGTERM, self._signal_handler)
+            signal.signal(signal.SIGINT, self._signal_handler)
 
-        if hasattr(signal, "SIGHUP"):
-            signal.signal(signal.SIGHUP, self._signal_handler)
+            if hasattr(signal, "SIGHUP"):
+                signal.signal(signal.SIGHUP, self._signal_handler)
+        except ValueError:
+            pass  # signal only works in main thread
 
     def _signal_handler(self, _signum: int, _frame: Any) -> None:
         self.close_all()
