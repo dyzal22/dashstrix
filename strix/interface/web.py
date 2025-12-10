@@ -55,8 +55,12 @@ class ChatRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def get_dashboard():
-    with open("strix/interface/assets/index.html", "r") as f:
-        return f.read()
+    try:
+        index_path = Path(__file__).parent / "assets" / "index.html"
+        with open(index_path, "r") as f:
+            return f.read()
+    except Exception as e:
+        return f"Error loading dashboard: {e}"
 
 @app.post("/api/scan/start")
 async def start_scan(request: ScanRequest):
