@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DashStrix</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3.4.19/dist/vue.global.js" crossorigin="anonymous"></script>
     <style>
         .terminal {
             background-color: #1e1e1e;
@@ -48,6 +48,9 @@
             background-color: #065f46;
             align-self: flex-start;
             margin-right: auto;
+        }
+        [v-cloak] {
+            display: none;
         }
     </style>
 </head>
@@ -118,11 +121,11 @@
                 <h2 class="text-xl font-semibold mb-4 text-green-400 flex items-center">
                     <span class="mr-2">💬</span> Agent Chat
                 </h2>
-                <div class="chat-history flex flex-col" ref="chatHistory">
-                    <div v-if="chatHistory.length === 0" class="text-gray-500 text-center mt-10 italic">
+                <div class="chat-history flex flex-col" ref="chatContainer">
+                    <div v-if="chatMessages.length === 0" class="text-gray-500 text-center mt-10 italic">
                         No messages yet.
                     </div>
-                    <div v-for="msg in chatHistory" :key="msg.message_id"
+                    <div v-for="msg in chatMessages" :key="msg.message_id"
                         class="chat-message"
                         :class="msg.role === 'user' ? 'chat-user' : 'chat-agent'">
                         <div class="text-xs text-gray-400 mb-1">{{ msg.role === 'user' ? 'You' : 'Agent' }}</div>
@@ -220,6 +223,11 @@
             return false;
         };
 
+        // Check if Vue is loaded
+        if (typeof Vue === 'undefined') {
+            throw new Error("Vue.js failed to load from CDN. Please check your internet connection or ad blocker.");
+        }
+
         const { createApp, ref, onMounted, watch } = Vue
 
         createApp({
@@ -233,11 +241,11 @@
                 const vulnerabilities = ref([])
                 const activities = ref([])
                 const toolExecutions = ref([])
-                const chatHistory = ref([])
+                const chatMessages = ref([])
                 const chatInput = ref('')
                 const status = ref('idle')
                 const logContainer = ref(null)
-                const chatHistoryRef = ref(null)
+                const chatContainer = ref(null)
                 let pollInterval = null
 
                 onMounted(() => {
@@ -254,7 +262,7 @@
                         vulnerabilities.value = []
                         activities.value = []
                         toolExecutions.value = []
-                        chatHistory.value = []
+                        chatMessages.value = []
 
                         const response = await fetch('/api/scan/start', {
                             method: 'POST',
@@ -298,7 +306,7 @@
                     chatInput.value = ''
 
                     // Optimistic update
-                    chatHistory.value.push({ role: 'user', content: message, message_id: 'temp-' + Date.now() })
+                    chatMessages.value.push({ role: 'user', content: message, message_id: 'temp-' + Date.now() })
 
                     try {
                         await fetch('/api/scan/chat', {
@@ -322,7 +330,7 @@
                         vulnerabilities.value = data.vulnerabilities || []
                         activities.value = data.activities || []
                         toolExecutions.value = data.tool_executions || []
-                        chatHistory.value = data.chat_history || []
+                        chatMessages.value = data.chat_history || []
 
                         if (data.logs && data.logs.length > 0) {
                              logs.value = data.logs
@@ -358,10 +366,10 @@
                 }, { deep: true })
 
                 // Auto-scroll chat
-                watch(chatHistory, () => {
-                    if (chatHistoryRef.value) {
+                watch(chatMessages, () => {
+                    if (chatContainer.value) {
                          setTimeout(() => {
-                            // chatHistoryRef.value.scrollTop = chatHistoryRef.value.scrollHeight
+                            chatContainer.value.scrollTop = chatContainer.value.scrollHeight
                          }, 100)
                     }
                 }, { deep: true })
@@ -376,14 +384,14 @@
                     vulnerabilities,
                     activities,
                     toolExecutions,
-                    chatHistory,
+                    chatMessages,
                     chatInput,
                     status,
                     startScan,
                     stopScan,
                     sendMessage,
                     logContainer,
-                    chatHistory: chatHistoryRef
+                    chatContainer
                 }
             }
         }).mount('#app')
