@@ -20,6 +20,35 @@
             height: 300px;
             overflow-y: auto;
         }
+        .chat-container {
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-history {
+            flex-grow: 1;
+            overflow-y: auto;
+            background-color: #1e1e1e;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .chat-message {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            max-width: 80%;
+        }
+        .chat-user {
+            background-color: #374151;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+        .chat-agent {
+            background-color: #065f46;
+            align-self: flex-start;
+            margin-right: auto;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
@@ -79,8 +108,35 @@
         <!-- Dashboard Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
 
+            <!-- Chat Interface -->
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col h-[400px]">
+                <h2 class="text-xl font-semibold mb-4 text-green-400 flex items-center">
+                    <span class="mr-2">💬</span> Agent Chat
+                </h2>
+                <div class="chat-history flex flex-col" ref="chatHistory">
+                    <div v-if="chatHistory.length === 0" class="text-gray-500 text-center mt-10 italic">
+                        No messages yet.
+                    </div>
+                    <div v-for="msg in chatHistory" :key="msg.message_id"
+                        class="chat-message"
+                        :class="msg.role === 'user' ? 'chat-user' : 'chat-agent'">
+                        <div class="text-xs text-gray-400 mb-1">{{ msg.role === 'user' ? 'You' : 'Agent' }}</div>
+                        <div class="whitespace-pre-wrap">{{ msg.content }}</div>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <input v-model="chatInput" @keyup.enter="sendMessage" type="text" placeholder="Type a message to the agent..."
+                        class="flex-grow bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition"
+                        :disabled="!loading">
+                    <button @click="sendMessage" :disabled="!loading || !chatInput"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition disabled:opacity-50">
+                        Send
+                    </button>
+                </div>
+            </div>
+
             <!-- Vulnerabilities -->
-            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col">
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col h-[400px]">
                 <h2 class="text-xl font-semibold mb-4 text-red-400 flex items-center">
                     <span class="mr-2">🛡️</span> Vulnerabilities Found
                     <span class="ml-auto bg-red-900 text-red-200 text-xs px-2 py-1 rounded-full">{{ vulnerabilities.length }}</span>
@@ -103,36 +159,11 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Agent Activities -->
-            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col">
-                <h2 class="text-xl font-semibold mb-4 text-blue-400 flex items-center">
-                    <span class="mr-2">🤖</span> Agent Activities
-                </h2>
-                 <div class="scrollable-list space-y-3">
-                    <div v-if="activities.length === 0" class="text-gray-500 text-center mt-10 italic">
-                        Agents are idle.
-                    </div>
-                    <div v-for="activity in activities" :key="activity.agent" class="bg-gray-900 p-3 rounded border border-gray-700">
-                        <div class="flex justify-between items-center mb-2">
-                             <span class="font-bold text-sm text-blue-300">{{ activity.agent }}</span>
-                             <span :class="{
-                                'text-green-400': activity.status === 'running',
-                                'text-gray-400': activity.status === 'completed',
-                                'text-red-400': activity.status === 'failed',
-                                'text-yellow-400': activity.status === 'waiting'
-                            }" class="text-xs font-mono">{{ activity.status }}</span>
-                        </div>
-                        <p class="text-xs text-gray-400">{{ activity.task }}</p>
-                        <p v-if="activity.error" class="text-xs text-red-400 mt-1">{{ activity.error }}</p>
-                    </div>
-                 </div>
-            </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Tool Executions -->
-             <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col">
+             <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col h-[400px]">
                 <h2 class="text-xl font-semibold mb-4 text-purple-400 flex items-center">
                     <span class="mr-2">🔧</span> Recent Tool Executions
                 </h2>
@@ -156,7 +187,7 @@
              </div>
 
             <!-- Logs -->
-            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col">
+            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col h-[400px]">
                 <h2 class="text-xl font-semibold mb-4 text-gray-400 flex items-center">
                     <span class="mr-2">📝</span> Logs
                 </h2>
@@ -182,8 +213,11 @@
                 const vulnerabilities = ref([])
                 const activities = ref([])
                 const toolExecutions = ref([])
+                const chatHistory = ref([])
+                const chatInput = ref('')
                 const status = ref('idle')
                 const logContainer = ref(null)
+                const chatHistoryRef = ref(null)
                 let pollInterval = null
 
                 const startScan = async () => {
@@ -194,6 +228,7 @@
                         vulnerabilities.value = []
                         activities.value = []
                         toolExecutions.value = []
+                        chatHistory.value = []
 
                         const response = await fetch('/api/scan/start', {
                             method: 'POST',
@@ -230,6 +265,27 @@
                     }
                 }
 
+                const sendMessage = async () => {
+                    if (!chatInput.value.trim()) return
+
+                    const message = chatInput.value
+                    chatInput.value = ''
+
+                    // Optimistic update
+                    chatHistory.value.push({ role: 'user', content: message, message_id: 'temp-' + Date.now() })
+
+                    try {
+                        await fetch('/api/scan/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message })
+                        })
+                    } catch (e) {
+                        console.error('Failed to send message', e)
+                        logs.value.push('Failed to send message: ' + e.message)
+                    }
+                }
+
                 const pollStatus = async () => {
                     try {
                         const response = await fetch('/api/scan/status')
@@ -240,6 +296,7 @@
                         vulnerabilities.value = data.vulnerabilities || []
                         activities.value = data.activities || []
                         toolExecutions.value = data.tool_executions || []
+                        chatHistory.value = data.chat_history || []
 
                         if (data.logs && data.logs.length > 0) {
                              logs.value = data.logs
@@ -274,6 +331,15 @@
                     }
                 }, { deep: true })
 
+                // Auto-scroll chat
+                watch(chatHistory, () => {
+                    if (chatHistoryRef.value) {
+                         setTimeout(() => {
+                            // chatHistoryRef.value.scrollTop = chatHistoryRef.value.scrollHeight
+                         }, 100)
+                    }
+                }, { deep: true })
+
                 return {
                     target,
                     instruction,
@@ -284,10 +350,14 @@
                     vulnerabilities,
                     activities,
                     toolExecutions,
+                    chatHistory,
+                    chatInput,
                     status,
                     startScan,
                     stopScan,
-                    logContainer
+                    sendMessage,
+                    logContainer,
+                    chatHistory: chatHistoryRef
                 }
             }
         }).mount('#app')

@@ -11,8 +11,13 @@ def get_runtime() -> AbstractRuntime:
 
         return DockerRuntime()
 
+    if runtime_backend == "local":
+        from .local_runtime import LocalRuntime
+
+        return LocalRuntime()
+
     raise ValueError(
-        f"Unsupported runtime backend: {runtime_backend}. Only 'docker' is supported for now."
+        f"Unsupported runtime backend: {runtime_backend}. Only 'docker' and 'local' are supported for now."
     )
 
 

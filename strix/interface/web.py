@@ -40,6 +40,7 @@ class ScanState:
     vulnerabilities = []
     status = "idle"
     run_name = None
+    chat_history = []
 
 scan_state = ScanState()
 
@@ -48,6 +49,9 @@ class ScanRequest(BaseModel):
     instruction: Optional[str] = None
     api_key: Optional[str] = None
     model: Optional[str] = "gemini/gemini-1.5-pro"
+
+class ChatRequest(BaseModel):
+    message: str
 
 @app.get("/", response_class=HTMLResponse)
 async def get_dashboard():
@@ -62,6 +66,7 @@ async def start_scan(request: ScanRequest):
     scan_state.running = True
     scan_state.logs = []
     scan_state.vulnerabilities = []
+    scan_state.chat_history = []
     scan_state.status = "running"
 
     # Start scan in a background thread
@@ -75,6 +80,7 @@ async def get_scan_status():
     vulns = []
     activities = []
     tool_executions = []
+    chat_messages = []
 
     if tracer:
         vulns = tracer.vulnerability_reports
@@ -102,6 +108,10 @@ async def get_scan_status():
                     "result": str(exec_data.get("result"))[:100] + "..." if exec_data.get("result") else None
                 })
 
+        # Extract chat messages
+        if hasattr(tracer, 'chat_messages'):
+             chat_messages = tracer.chat_messages
+
     return {
         "status": scan_state.status,
         "running": scan_state.running,
@@ -109,7 +119,8 @@ async def get_scan_status():
         "vulnerabilities": vulns,
         "run_name": scan_state.run_name,
         "activities": activities,
-        "tool_executions": tool_executions
+        "tool_executions": tool_executions,
+        "chat_history": chat_messages
     }
 
 @app.post("/api/scan/stop")
@@ -119,6 +130,38 @@ async def stop_scan():
     scan_state.running = False
     scan_state.status = "stopped"
     return {"status": "stopped"}
+
+@app.post("/api/scan/chat")
+async def send_chat_message(request: ChatRequest):
+    if not scan_state.running:
+        raise HTTPException(status_code=400, detail="Scan is not running")
+
+    try:
+        from strix.tools.agents_graph.agents_graph_actions import send_user_message_to_agent
+        from strix.telemetry.tracer import get_global_tracer
+
+        tracer = get_global_tracer()
+        if not tracer:
+             raise HTTPException(status_code=500, detail="Tracer not initialized")
+
+        # Find the root agent or the most relevant agent
+        agent_id = None
+        if tracer.agents:
+             # Just pick the first one/root for now
+             agent_id = list(tracer.agents.keys())[0]
+
+        if agent_id:
+            tracer.log_chat_message(content=request.message, role="user", agent_id=agent_id)
+            send_user_message_to_agent(agent_id, request.message)
+            return {"status": "sent"}
+        else:
+            raise HTTPException(status_code=404, detail="No active agent found")
+
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Failed to import agent tools")
+    except Exception as e:
+        logging.exception("Failed to send message")
+        raise HTTPException(status_code=500, detail=str(e))
 
 def run_strix_scan(target: str, instruction: str | None, api_key: str | None, model: str | None):
     try:
@@ -138,6 +181,9 @@ def run_strix_scan(target: str, instruction: str | None, api_key: str | None, mo
             os.environ["LLM_API_KEY"] = api_key
         if model:
             os.environ["STRIX_LLM"] = model
+
+        # FORCE LOCAL RUNTIME
+        os.environ["STRIX_RUNTIME_BACKEND"] = "local"
 
         # Basic validation and setup
         # validate_environment() # Skipping for now to avoid exit(1)
