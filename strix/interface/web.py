@@ -54,13 +54,17 @@ class ChatRequest(BaseModel):
     message: str
 
 @app.get("/", response_class=HTMLResponse)
-async def get_dashboard():
+async def get_dashboard(request: Request):
     try:
         index_path = Path(__file__).parent / "assets" / "index.html"
         with open(index_path, "r") as f:
-            return f.read()
+            content = f.read()
+            return HTMLResponse(
+                content=content,
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+            )
     except Exception as e:
-        return f"Error loading dashboard: {e}"
+        return HTMLResponse(content=f"Error loading dashboard: {e}", status_code=500)
 
 @app.post("/api/scan/start")
 async def start_scan(request: ScanRequest):
