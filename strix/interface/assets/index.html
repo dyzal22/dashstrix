@@ -13,17 +13,31 @@
             font-family: 'Courier New', Courier, monospace;
             padding: 1rem;
             border-radius: 0.5rem;
-            height: 300px;
+            height: 100%;
             overflow-y: auto;
         }
         .scrollable-list {
-            height: 300px;
             overflow-y: auto;
         }
-        .chat-container {
-            height: 300px;
+        /* Layout adjustments */
+        .layout-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* 50% 50% split */
+            gap: 1.5rem;
+            height: calc(100vh - 120px); /* Adjust for header/margins */
+        }
+        .column {
             display: flex;
             flex-direction: column;
+            gap: 1.5rem;
+            height: 100%;
+            overflow: hidden;
+        }
+        .chat-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         .chat-history {
             flex-grow: 1;
@@ -49,9 +63,12 @@
             align-self: flex-start;
             margin-right: auto;
         }
+        [v-cloak] {
+            display: none !important;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
+<body class="bg-gray-900 text-white min-h-screen font-sans">
     <!-- Loading indicator -->
     <div id="loading-indicator" class="fixed inset-0 flex flex-col items-center justify-center bg-gray-900 z-50">
         <div id="loading-text" class="text-xl font-bold animate-pulse text-green-500">Loading DashStrix...</div>
@@ -61,151 +78,187 @@
         </div>
     </div>
 
-    <div id="app" class="container mx-auto px-4 py-8" style="display: none;" :style="{ display: 'block' }">
-        <header class="flex items-center justify-between mb-8">
-            <div class="flex items-center">
-                <h1 class="text-3xl font-bold text-green-500 mr-4">DashStrix</h1>
-                <span class="bg-gray-800 text-xs px-2 py-1 rounded border border-gray-700">v0.4.1</span>
-            </div>
-            <div>
-                <span v-if="loading" class="text-yellow-400 animate-pulse">Scanning...</span>
-                <span v-else-if="status === 'completed'" class="text-green-400">Scan Completed</span>
-                <span v-else-if="status === 'failed'" class="text-red-400">Scan Failed</span>
-                <span v-else class="text-gray-400">Ready</span>
-            </div>
-        </header>
+    <div id="app" v-cloak class="px-6 py-4 h-screen flex flex-col">
 
-        <!-- Input Section -->
-        <div class="bg-gray-800 rounded-lg p-6 mb-8 shadow-lg border border-gray-700">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Target</label>
-                    <input v-model="target" type="text" placeholder="e.g., https://example.com"
-                        class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Instructions (Optional)</label>
-                    <input v-model="instruction" type="text" placeholder="e.g., Focus on SQL Injection"
-                        class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
-                </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                 <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Model Name</label>
-                    <input v-model="model" type="text" placeholder="gemini/gemini-1.5-pro"
-                        class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-400 mb-1">API Key</label>
-                    <input v-model="apiKey" type="password" placeholder="AIzaSy..."
-                        class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
-                </div>
-            </div>
+        <!-- Setup Screen -->
+        <div v-if="!isSetupComplete" class="fixed inset-0 z-40 bg-gray-900 flex items-center justify-center">
+            <div class="bg-gray-800 p-8 rounded-lg shadow-2xl border border-gray-700 w-full max-w-md">
+                <h1 class="text-3xl font-bold text-green-500 mb-6 text-center">DashStrix Setup</h1>
+                <p class="text-gray-400 mb-6 text-center text-sm">Please configure your LLM settings to continue.</p>
 
-            <div class="flex justify-end">
-                <button @click="startScan" :disabled="loading || !target"
-                    class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition disabled:opacity-50 disabled:cursor-not-allowed">
-                    Start Scan
-                </button>
-                <button @click="stopScan" v-if="loading"
-                    class="ml-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition">
-                    Stop
-                </button>
-            </div>
-        </div>
-
-        <!-- Dashboard Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-
-            <!-- Chat Interface -->
-            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col h-[400px]">
-                <h2 class="text-xl font-semibold mb-4 text-green-400 flex items-center">
-                    <span class="mr-2">💬</span> Agent Chat
-                </h2>
-                <div class="chat-history flex flex-col" ref="chatContainer">
-                    <div v-if="chatMessages.length === 0" class="text-gray-500 text-center mt-10 italic">
-                        No messages yet.
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">API Key <span class="text-red-500">*</span></label>
+                        <input v-model="apiKey" type="password" placeholder="AIzaSy..."
+                            class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
                     </div>
-                    <div v-for="msg in chatMessages" :key="msg.message_id"
-                        class="chat-message"
-                        :class="msg.role === 'user' ? 'chat-user' : 'chat-agent'">
-                        <div class="text-xs text-gray-400 mb-1">{{ msg.role === 'user' ? 'You' : 'Agent' }}</div>
-                        <div class="whitespace-pre-wrap">{{ msg.content }}</div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Model Name</label>
+                        <input v-model="model" type="text" placeholder="gemini/gemini-1.5-pro"
+                            class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
                     </div>
-                </div>
-                <div class="flex gap-2">
-                    <input v-model="chatInput" @keyup.enter="sendMessage" type="text" placeholder="Type a message to the agent..."
-                        class="flex-grow bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition"
-                        :disabled="!loading">
-                    <button @click="sendMessage" :disabled="!loading || !chatInput"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition disabled:opacity-50">
-                        Send
+                    <button @click="completeSetup" :disabled="!apiKey"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition disabled:opacity-50 disabled:cursor-not-allowed mt-4">
+                        Enter Dashboard
                     </button>
                 </div>
             </div>
+        </div>
 
-            <!-- Vulnerabilities -->
-            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col h-[400px]">
-                <h2 class="text-xl font-semibold mb-4 text-red-400 flex items-center">
-                    <span class="mr-2">🛡️</span> Vulnerabilities Found
-                    <span class="ml-auto bg-red-900 text-red-200 text-xs px-2 py-1 rounded-full">{{ vulnerabilities.length }}</span>
-                </h2>
-                <div class="scrollable-list space-y-3">
-                    <div v-if="vulnerabilities.length === 0" class="text-gray-500 text-center mt-10 italic">
-                        No vulnerabilities found yet.
+        <!-- Main Dashboard -->
+        <template v-else>
+            <header class="flex items-center justify-between mb-4 flex-shrink-0">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-green-500 mr-4">DashStrix</h1>
+                    <span class="bg-gray-800 text-xs px-2 py-1 rounded border border-gray-700">v0.4.1</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div>
+                        <span v-if="loading" class="text-yellow-400 animate-pulse font-mono">Scanning...</span>
+                        <span v-else-if="status === 'completed'" class="text-green-400 font-mono">Scan Completed</span>
+                        <span v-else-if="status === 'failed'" class="text-red-400 font-mono">Scan Failed</span>
+                        <span v-else class="text-gray-400 font-mono">Ready</span>
                     </div>
-                    <div v-for="vuln in vulnerabilities" :key="vuln.id" class="bg-gray-900 p-4 rounded border border-gray-700 hover:border-red-500 transition cursor-pointer">
-                        <div class="flex justify-between items-start">
-                            <h3 class="font-bold text-white">{{ vuln.title }}</h3>
-                            <span :class="{
-                                'bg-red-900 text-red-200': vuln.severity === 'critical',
-                                'bg-orange-900 text-orange-200': vuln.severity === 'high',
-                                'bg-yellow-900 text-yellow-200': vuln.severity === 'medium',
-                                'bg-blue-900 text-blue-200': vuln.severity === 'low'
-                            }" class="text-xs px-2 py-1 rounded uppercase font-bold">{{ vuln.severity }}</span>
+                    <button @click="resetSetup" class="text-xs text-gray-500 hover:text-white underline">
+                        Reset Key
+                    </button>
+                </div>
+            </header>
+
+            <div class="layout-container flex-grow">
+                <!-- Column 1: Interaction & Chat -->
+                <div class="column">
+                    <!-- Input Section -->
+                    <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 flex-shrink-0">
+                        <div class="grid grid-cols-1 gap-3 mb-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1">Target (URL or Directory)</label>
+                                <input v-model="target" type="text" placeholder="e.g., https://example.com"
+                                    class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-400 mb-1">Instructions (Optional)</label>
+                                <input v-model="instruction" type="text" placeholder="e.g., Focus on SQL Injection"
+                                    class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+                            </div>
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">{{ vuln.timestamp }}</p>
+
+                        <div class="flex justify-between items-center">
+                            <div class="text-xs text-gray-500">
+                                Model: <span class="text-gray-300">{{ model }}</span>
+                            </div>
+                            <div>
+                                <button @click="startScan" :disabled="loading || !target"
+                                    class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-1.5 px-4 rounded transition disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Start Scan
+                                </button>
+                                <button @click="stopScan" v-if="loading"
+                                    class="ml-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1.5 px-4 rounded transition">
+                                    Stop
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Interface -->
+                    <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 chat-container">
+                        <h2 class="text-sm font-semibold mb-2 text-green-400 flex items-center">
+                            <span class="mr-2">💬</span> Agent Chat
+                        </h2>
+                        <div class="chat-history flex flex-col" ref="chatContainer">
+                            <div v-if="chatMessages.length === 0" class="text-gray-500 text-center mt-10 italic text-sm">
+                                No messages yet. Start a scan to interact with the agent.
+                            </div>
+                            <div v-for="msg in chatMessages" :key="msg.message_id"
+                                class="chat-message text-sm"
+                                :class="msg.role === 'user' ? 'chat-user' : 'chat-agent'">
+                                <div class="text-[10px] text-gray-400 mb-1">{{ msg.role === 'user' ? 'You' : 'Agent' }}</div>
+                                <div class="whitespace-pre-wrap">{{ msg.content }}</div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 pt-2 border-t border-gray-700">
+                            <input v-model="chatInput" @keyup.enter="sendMessage" type="text" placeholder="Type a message to the agent..."
+                                class="flex-grow bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition"
+                                :disabled="!loading">
+                            <button @click="sendMessage" :disabled="!loading || !chatInput"
+                                class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-1.5 px-3 rounded transition disabled:opacity-50">
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 2: Execution & Output -->
+                <div class="column">
+                    <!-- Logs / Terminal -->
+                    <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 flex flex-col h-1/2">
+                        <h2 class="text-sm font-semibold mb-2 text-gray-400 flex items-center justify-between">
+                            <span class="flex items-center"><span class="mr-2">💻</span> Agent Execution Log</span>
+                            <span class="text-xs bg-gray-900 px-2 py-0.5 rounded text-gray-500">Live</span>
+                        </h2>
+                        <div class="terminal flex-grow text-xs" ref="logContainer">
+                            <div v-if="logs.length === 0" class="text-gray-500 italic p-2">Waiting for agent activity...</div>
+                            <div v-for="(log, index) in logs" :key="index" class="whitespace-pre-wrap mb-1 leading-tight">{{ log }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Tool Executions & Vulnerabilities -->
+                    <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 flex flex-col h-1/2 overflow-hidden">
+                        <!-- Tabs -->
+                        <div class="flex border-b border-gray-700 mb-2">
+                            <button @click="activeTab = 'tools'"
+                                :class="{'text-purple-400 border-b-2 border-purple-400': activeTab === 'tools', 'text-gray-500': activeTab !== 'tools'}"
+                                class="pb-1 px-3 text-sm font-medium transition hover:text-gray-300">
+                                🔧 Tools
+                            </button>
+                            <button @click="activeTab = 'vulns'"
+                                :class="{'text-red-400 border-b-2 border-red-400': activeTab === 'vulns', 'text-gray-500': activeTab !== 'vulns'}"
+                                class="pb-1 px-3 text-sm font-medium transition hover:text-gray-300">
+                                🛡️ Vulnerabilities <span v-if="vulnerabilities.length" class="ml-1 bg-red-900 text-red-200 text-[10px] px-1.5 rounded-full">{{ vulnerabilities.length }}</span>
+                            </button>
+                        </div>
+
+                        <!-- Tool Content -->
+                        <div v-if="activeTab === 'tools'" class="scrollable-list flex-grow space-y-2 pr-1">
+                             <div v-if="toolExecutions.length === 0" class="text-gray-500 text-center mt-10 italic text-sm">
+                                No tools executed yet.
+                            </div>
+                            <div v-for="exec in toolExecutions" :key="exec.id" class="bg-gray-900 p-2 rounded border border-gray-700 text-[10px] font-mono hover:bg-gray-800 transition">
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-purple-300 font-bold">{{ exec.tool }}</span>
+                                    <span :class="{
+                                        'text-green-400': exec.status === 'completed',
+                                        'text-red-400': exec.status === 'failed',
+                                        'text-yellow-400': exec.status === 'running'
+                                    }">{{ exec.status }}</span>
+                                </div>
+                                <div class="text-gray-400 truncate opacity-80" :title="exec.args">Args: {{ exec.args }}</div>
+                                <div v-if="exec.result" class="text-gray-500 truncate mt-1 border-t border-gray-800 pt-1" :title="exec.result">-> {{ exec.result }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Vulnerabilities Content -->
+                        <div v-if="activeTab === 'vulns'" class="scrollable-list flex-grow space-y-2 pr-1">
+                            <div v-if="vulnerabilities.length === 0" class="text-gray-500 text-center mt-10 italic text-sm">
+                                No vulnerabilities found yet.
+                            </div>
+                            <div v-for="vuln in vulnerabilities" :key="vuln.id" class="bg-gray-900 p-3 rounded border border-gray-700 hover:border-red-500 transition cursor-pointer">
+                                <div class="flex justify-between items-start mb-1">
+                                    <h3 class="font-bold text-white text-sm">{{ vuln.title }}</h3>
+                                    <span :class="{
+                                        'bg-red-900 text-red-200': vuln.severity === 'critical',
+                                        'bg-orange-900 text-orange-200': vuln.severity === 'high',
+                                        'bg-yellow-900 text-yellow-200': vuln.severity === 'medium',
+                                        'bg-blue-900 text-blue-200': vuln.severity === 'low'
+                                    }" class="text-[10px] px-1.5 py-0.5 rounded uppercase font-bold">{{ vuln.severity }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500">{{ vuln.timestamp }}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <!-- Tool Executions -->
-             <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col h-[400px]">
-                <h2 class="text-xl font-semibold mb-4 text-purple-400 flex items-center">
-                    <span class="mr-2">🔧</span> Recent Tool Executions
-                </h2>
-                 <div class="scrollable-list space-y-2">
-                    <div v-if="toolExecutions.length === 0" class="text-gray-500 text-center mt-10 italic">
-                        No tools executed yet.
-                    </div>
-                    <div v-for="exec in toolExecutions" :key="exec.id" class="bg-gray-900 p-2 rounded border border-gray-700 text-xs font-mono">
-                        <div class="flex justify-between">
-                            <span class="text-purple-300">{{ exec.tool }}</span>
-                            <span :class="{
-                                'text-green-400': exec.status === 'completed',
-                                'text-red-400': exec.status === 'failed',
-                                'text-yellow-400': exec.status === 'running'
-                            }">{{ exec.status }}</span>
-                        </div>
-                        <div class="text-gray-500 truncate mt-1">{{ exec.args }}</div>
-                        <div v-if="exec.result" class="text-gray-600 truncate mt-1">-> {{ exec.result }}</div>
-                    </div>
-                 </div>
-             </div>
-
-            <!-- Logs -->
-            <div class="bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700 flex flex-col h-[400px]">
-                <h2 class="text-xl font-semibold mb-4 text-gray-400 flex items-center">
-                    <span class="mr-2">📝</span> Logs
-                </h2>
-                <div class="terminal flex-grow" ref="logContainer">
-                    <div v-if="logs.length === 0" class="text-gray-500 italic">Waiting for logs...</div>
-                    <div v-for="(log, index) in logs" :key="index" class="text-sm font-mono whitespace-pre-wrap mb-1">{{ log }}</div>
-                </div>
-            </div>
-        </div>
+        </template>
     </div>
 
     <script>
@@ -242,11 +295,18 @@
 
                 createApp({
                     setup() {
+                        // Persistent State
+                        const isSetupComplete = ref(false)
+
+                        // App State
                         const target = ref('')
                         const instruction = ref('')
                         const apiKey = ref('')
                         const model = ref('gemini/gemini-1.5-pro')
                         const loading = ref(false)
+                        const activeTab = ref('tools')
+
+                        // Data State
                         const logs = ref([])
                         const vulnerabilities = ref([])
                         const activities = ref([])
@@ -254,6 +314,8 @@
                         const chatMessages = ref([])
                         const chatInput = ref('')
                         const status = ref('idle')
+
+                        // Refs
                         const logContainer = ref(null)
                         const chatContainer = ref(null)
                         let pollInterval = null
@@ -262,7 +324,32 @@
                             // Hide loading indicator when Vue mounts
                             const loadingEl = document.getElementById('loading-indicator');
                             if (loadingEl) loadingEl.style.display = 'none';
+
+                            // Check local storage for setup
+                            const storedKey = localStorage.getItem('strix_api_key');
+                            const storedModel = localStorage.getItem('strix_model');
+
+                            if (storedKey) {
+                                apiKey.value = storedKey;
+                                if (storedModel) model.value = storedModel;
+                                isSetupComplete.value = true;
+                            }
                         });
+
+                        const completeSetup = () => {
+                            if (apiKey.value) {
+                                localStorage.setItem('strix_api_key', apiKey.value);
+                                localStorage.setItem('strix_model', model.value);
+                                isSetupComplete.value = true;
+                            }
+                        }
+
+                        const resetSetup = () => {
+                            localStorage.removeItem('strix_api_key');
+                            localStorage.removeItem('strix_model');
+                            apiKey.value = '';
+                            isSetupComplete.value = false;
+                        }
 
                         const startScan = async () => {
                             try {
@@ -385,11 +472,15 @@
                         }, { deep: true })
 
                         return {
+                            isSetupComplete,
+                            completeSetup,
+                            resetSetup,
                             target,
                             instruction,
                             apiKey,
                             model,
                             loading,
+                            activeTab,
                             logs,
                             vulnerabilities,
                             activities,
