@@ -4,101 +4,217 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DashStrix</title>
+    <!-- Fallback to CDN for development, but include critical inline styles for robustness -->
     <script src="https://cdn.tailwindcss.com" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/vue@3.4.19/dist/vue.global.js" crossorigin="anonymous"></script>
     <style>
+        /* Base Reset & Colors (Fallback if Tailwind fails) */
+        :root {
+            --bg-dark: #111827; /* gray-900 */
+            --bg-card: #1f2937; /* gray-800 */
+            --bg-input: #111827;
+            --text-main: #ffffff;
+            --text-muted: #9ca3af; /* gray-400 */
+            --accent-green: #16a34a; /* green-600 */
+            --accent-green-hover: #15803d; /* green-700 */
+            --accent-red: #dc2626; /* red-600 */
+            --border-color: #374151; /* gray-700 */
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: ui-sans-serif, system-ui, sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Utilities matching Tailwind classes used */
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .flex-row { flex-direction: row; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-center { justify-content: center; }
+        .flex-grow { flex-grow: 1; }
+        .h-screen { height: 100vh; }
+        .w-full { width: 100%; }
+        .hidden { display: none !important; }
+
+        /* Setup Modal (Fixed Positioning) */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(17, 24, 39, 0.95);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: var(--bg-card);
+            padding: 2rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            width: 100%;
+            max-width: 28rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Dashboard Layout */
+        .layout-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            height: calc(100vh - 60px); /* Adjust for header */
+            box-sizing: border-box;
+        }
+
+        @media (max-width: 768px) {
+            .layout-container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            height: 100%;
+            min-height: 0; /* Important for nested scrolling */
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Components */
+        input[type="text"], input[type="password"] {
+            background-color: var(--bg-input);
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            width: 100%;
+            box-sizing: border-box;
+            outline: none;
+        }
+        input:focus {
+            border-color: var(--accent-green);
+        }
+
+        button.primary {
+            background-color: var(--accent-green);
+            color: white;
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button.primary:hover { background-color: var(--accent-green-hover); }
+        button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        button.danger {
+            background-color: var(--accent-red);
+            color: white;
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* Logs & Terminal */
         .terminal {
             background-color: #1e1e1e;
             color: #d4d4d4;
             font-family: 'Courier New', Courier, monospace;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            height: 100%;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
             overflow-y: auto;
-        }
-        .scrollable-list {
-            overflow-y: auto;
-        }
-        /* Layout adjustments */
-        .layout-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr; /* 50% 50% split */
-            gap: 1.5rem;
-            height: calc(100vh - 120px); /* Adjust for header/margins */
-        }
-        .column {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            height: 100%;
-            overflow: hidden;
-        }
-        .chat-container {
             flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            font-size: 0.75rem;
+            white-space: pre-wrap;
         }
+
         .chat-history {
             flex-grow: 1;
             overflow-y: auto;
             background-color: #1e1e1e;
-            border-radius: 0.5rem;
+            border-radius: 0.25rem;
             padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        .chat-message {
             margin-bottom: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .chat-message {
             padding: 0.5rem;
             border-radius: 0.5rem;
-            max-width: 80%;
+            max-width: 85%;
+            font-size: 0.875rem;
         }
         .chat-user {
             background-color: #374151;
             align-self: flex-end;
-            margin-left: auto;
         }
         .chat-agent {
             background-color: #065f46;
             align-self: flex-start;
-            margin-right: auto;
         }
-        [v-cloak] {
-            display: none !important;
+
+        [v-cloak] { display: none !important; }
+
+        /* Header */
+        header {
+            padding: 1rem 1.5rem 0.5rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen font-sans">
+<body>
     <!-- Loading indicator -->
-    <div id="loading-indicator" class="fixed inset-0 flex flex-col items-center justify-center bg-gray-900 z-50">
-        <div id="loading-text" class="text-xl font-bold animate-pulse text-green-500">Loading DashStrix...</div>
-        <div id="error-container" class="hidden mt-4 p-4 bg-red-900/50 border border-red-500 rounded max-w-lg text-center">
-            <h3 class="text-red-400 font-bold mb-2">Application Failed to Start</h3>
-            <p id="error-message" class="text-white text-sm"></p>
+    <div id="loading-indicator" class="fixed inset-0 flex flex-col items-center justify-center bg-gray-900 z-50" style="position:fixed; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#111827; z-index:9999;">
+        <div id="loading-text" style="color:#22c55e; font-size:1.25rem; font-weight:bold;">Loading DashStrix...</div>
+        <div id="error-container" class="hidden" style="margin-top:1rem; padding:1rem; border:1px solid #ef4444; background:rgba(127,29,29,0.5); border-radius:0.5rem; text-align:center; max-width:20rem;">
+            <h3 style="color:#f87171; font-weight:bold; margin-bottom:0.5rem;">Application Failed to Start</h3>
+            <p id="error-message" style="color:white; font-size:0.875rem;"></p>
         </div>
     </div>
 
-    <div id="app" v-cloak class="px-6 py-4 h-screen flex flex-col">
+    <div id="app" v-cloak class="flex flex-col h-screen">
 
         <!-- Setup Screen -->
-        <div v-if="!isSetupComplete" class="fixed inset-0 z-40 bg-gray-900 flex items-center justify-center">
-            <div class="bg-gray-800 p-8 rounded-lg shadow-2xl border border-gray-700 w-full max-w-md">
-                <h1 class="text-3xl font-bold text-green-500 mb-6 text-center">DashStrix Setup</h1>
-                <p class="text-gray-400 mb-6 text-center text-sm">Please configure your LLM settings to continue.</p>
+        <div v-if="!isSetupComplete" class="modal-overlay">
+            <div class="modal-content">
+                <h1 style="font-size:1.5rem; font-weight:bold; color:var(--accent-green); margin-bottom:1.5rem; text-align:center;">DashStrix Setup</h1>
+                <p style="color:var(--text-muted); margin-bottom:1.5rem; text-align:center; font-size:0.875rem;">Please configure your LLM settings to continue.</p>
 
-                <div class="space-y-4">
+                <div style="display:flex; flex-direction:column; gap:1rem;">
                     <div>
-                        <label class="block text-sm font-medium text-gray-400 mb-1">API Key <span class="text-red-500">*</span></label>
-                        <input v-model="apiKey" type="password" placeholder="AIzaSy..."
-                            class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
+                        <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text-muted); margin-bottom:0.25rem;">API Key <span style="color:var(--accent-red)">*</span></label>
+                        <input v-model="apiKey" type="password" placeholder="AIzaSy...">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-400 mb-1">Model Name</label>
-                        <input v-model="model" type="text" placeholder="gemini/gemini-1.5-pro"
-                            class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-green-500 transition">
+                        <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text-muted); margin-bottom:0.25rem;">Model Name</label>
+                        <input v-model="model" type="text" placeholder="gemini/gemini-1.5-pro">
                     </div>
-                    <button @click="completeSetup" :disabled="!apiKey"
-                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition disabled:opacity-50 disabled:cursor-not-allowed mt-4">
+                    <button @click="completeSetup" :disabled="!apiKey" class="primary w-full" style="margin-top:1rem;">
                         Enter Dashboard
                     </button>
                 </div>
@@ -107,53 +223,49 @@
 
         <!-- Main Dashboard -->
         <template v-else>
-            <header class="flex items-center justify-between mb-4 flex-shrink-0">
+            <header>
                 <div class="flex items-center">
-                    <h1 class="text-2xl font-bold text-green-500 mr-4">DashStrix</h1>
-                    <span class="bg-gray-800 text-xs px-2 py-1 rounded border border-gray-700">v0.4.1</span>
+                    <h1 style="font-size:1.5rem; font-weight:bold; color:var(--accent-green); margin-right:1rem;">DashStrix</h1>
+                    <span style="background:#1f2937; font-size:0.75rem; padding:0.25rem 0.5rem; border-radius:0.25rem; border:1px solid #374151;">v0.4.1</span>
                 </div>
-                <div class="flex items-center gap-4">
+                <div class="flex items-center" style="gap:1rem;">
                     <div>
-                        <span v-if="loading" class="text-yellow-400 animate-pulse font-mono">Scanning...</span>
-                        <span v-else-if="status === 'completed'" class="text-green-400 font-mono">Scan Completed</span>
-                        <span v-else-if="status === 'failed'" class="text-red-400 font-mono">Scan Failed</span>
-                        <span v-else class="text-gray-400 font-mono">Ready</span>
+                        <span v-if="loading" style="color:#facc15; font-family:monospace;">Scanning...</span>
+                        <span v-else-if="status === 'completed'" style="color:#4ade80; font-family:monospace;">Scan Completed</span>
+                        <span v-else-if="status === 'failed'" style="color:#f87171; font-family:monospace;">Scan Failed</span>
+                        <span v-else style="color:#9ca3af; font-family:monospace;">Ready</span>
                     </div>
-                    <button @click="resetSetup" class="text-xs text-gray-500 hover:text-white underline">
+                    <button @click="resetSetup" style="background:none; border:none; color:#6b7280; font-size:0.75rem; text-decoration:underline; cursor:pointer;">
                         Reset Key
                     </button>
                 </div>
             </header>
 
-            <div class="layout-container flex-grow">
+            <div class="layout-container">
                 <!-- Column 1: Interaction & Chat -->
                 <div class="column">
                     <!-- Input Section -->
-                    <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 flex-shrink-0">
-                        <div class="grid grid-cols-1 gap-3 mb-3">
+                    <div class="card" style="flex-shrink:0;">
+                        <div style="display:grid; grid-template-columns:1fr; gap:0.75rem; margin-bottom:0.75rem;">
                             <div>
-                                <label class="block text-xs font-medium text-gray-400 mb-1">Target (URL or Directory)</label>
-                                <input v-model="target" type="text" placeholder="e.g., https://example.com"
-                                    class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+                                <label style="display:block; font-size:0.75rem; font-weight:500; color:var(--text-muted); margin-bottom:0.25rem;">Target (URL or Directory)</label>
+                                <input v-model="target" type="text" placeholder="e.g., https://example.com" style="font-size:0.875rem;">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-400 mb-1">Instructions (Optional)</label>
-                                <input v-model="instruction" type="text" placeholder="e.g., Focus on SQL Injection"
-                                    class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
+                                <label style="display:block; font-size:0.75rem; font-weight:500; color:var(--text-muted); margin-bottom:0.25rem;">Instructions (Optional)</label>
+                                <input v-model="instruction" type="text" placeholder="e.g., Focus on SQL Injection" style="font-size:0.875rem;">
                             </div>
                         </div>
 
                         <div class="flex justify-between items-center">
-                            <div class="text-xs text-gray-500">
-                                Model: <span class="text-gray-300">{{ model }}</span>
+                            <div style="font-size:0.75rem; color:#6b7280;">
+                                Model: <span style="color:#d1d5db;">{{ model }}</span>
                             </div>
                             <div>
-                                <button @click="startScan" :disabled="loading || !target"
-                                    class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-1.5 px-4 rounded transition disabled:opacity-50 disabled:cursor-not-allowed">
+                                <button @click="startScan" :disabled="loading || !target" class="primary" style="font-size:0.875rem;">
                                     Start Scan
                                 </button>
-                                <button @click="stopScan" v-if="loading"
-                                    class="ml-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1.5 px-4 rounded transition">
+                                <button @click="stopScan" v-if="loading" class="danger" style="margin-left:0.5rem; font-size:0.875rem;">
                                     Stop
                                 </button>
                             </div>
@@ -161,27 +273,24 @@
                     </div>
 
                     <!-- Chat Interface -->
-                    <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 chat-container">
-                        <h2 class="text-sm font-semibold mb-2 text-green-400 flex items-center">
-                            <span class="mr-2">💬</span> Agent Chat
+                    <div class="card chat-container" style="flex-grow:1; display:flex; flex-direction:column; overflow:hidden;">
+                        <h2 style="font-size:0.875rem; font-weight:600; margin-bottom:0.5rem; color:#4ade80; display:flex; align-items:center;">
+                            <span style="margin-right:0.5rem;">💬</span> Agent Chat
                         </h2>
-                        <div class="chat-history flex flex-col" ref="chatContainer">
-                            <div v-if="chatMessages.length === 0" class="text-gray-500 text-center mt-10 italic text-sm">
+                        <div class="chat-history" ref="chatContainer">
+                            <div v-if="chatMessages.length === 0" style="color:#6b7280; text-align:center; margin-top:2.5rem; font-style:italic; font-size:0.875rem;">
                                 No messages yet. Start a scan to interact with the agent.
                             </div>
                             <div v-for="msg in chatMessages" :key="msg.message_id"
-                                class="chat-message text-sm"
+                                class="chat-message"
                                 :class="msg.role === 'user' ? 'chat-user' : 'chat-agent'">
-                                <div class="text-[10px] text-gray-400 mb-1">{{ msg.role === 'user' ? 'You' : 'Agent' }}</div>
-                                <div class="whitespace-pre-wrap">{{ msg.content }}</div>
+                                <div style="font-size:0.65rem; color:#9ca3af; margin-bottom:0.25rem;">{{ msg.role === 'user' ? 'You' : 'Agent' }}</div>
+                                <div style="white-space:pre-wrap;">{{ msg.content }}</div>
                             </div>
                         </div>
-                        <div class="flex gap-2 pt-2 border-t border-gray-700">
-                            <input v-model="chatInput" @keyup.enter="sendMessage" type="text" placeholder="Type a message to the agent..."
-                                class="flex-grow bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition"
-                                :disabled="!loading">
-                            <button @click="sendMessage" :disabled="!loading || !chatInput"
-                                class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-1.5 px-3 rounded transition disabled:opacity-50">
+                        <div style="display:flex; gap:0.5rem; padding-top:0.5rem; border-top:1px solid #374151;">
+                            <input v-model="chatInput" @keyup.enter="sendMessage" type="text" placeholder="Type a message..." :disabled="!loading" style="flex-grow:1; font-size:0.875rem;">
+                            <button @click="sendMessage" :disabled="!loading || !chatInput" class="primary" style="background-color:#2563eb; font-size:0.875rem;">
                                 Send
                             </button>
                         </div>
@@ -191,68 +300,62 @@
                 <!-- Column 2: Execution & Output -->
                 <div class="column">
                     <!-- Logs / Terminal -->
-                    <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 flex flex-col h-1/2">
-                        <h2 class="text-sm font-semibold mb-2 text-gray-400 flex items-center justify-between">
-                            <span class="flex items-center"><span class="mr-2">💻</span> Agent Execution Log</span>
-                            <span class="text-xs bg-gray-900 px-2 py-0.5 rounded text-gray-500">Live</span>
+                    <div class="card" style="height:50%; display:flex; flex-direction:column;">
+                        <h2 style="font-size:0.875rem; font-weight:600; margin-bottom:0.5rem; color:#9ca3af; display:flex; align-items:center; justify-content:space-between;">
+                            <span class="flex items-center"><span style="margin-right:0.5rem;">💻</span> Agent Execution Log</span>
+                            <span style="background:#111827; padding:0.125rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; color:#6b7280;">Live</span>
                         </h2>
-                        <div class="terminal flex-grow text-xs" ref="logContainer">
-                            <div v-if="logs.length === 0" class="text-gray-500 italic p-2">Waiting for agent activity...</div>
-                            <div v-for="(log, index) in logs" :key="index" class="whitespace-pre-wrap mb-1 leading-tight">{{ log }}</div>
+                        <div class="terminal" ref="logContainer">
+                            <div v-if="logs.length === 0" style="color:#6b7280; font-style:italic; padding:0.5rem;">Waiting for agent activity...</div>
+                            <div v-for="(log, index) in logs" :key="index" style="margin-bottom:0.125rem;">{{ log }}</div>
                         </div>
                     </div>
 
                     <!-- Tool Executions & Vulnerabilities -->
-                    <div class="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700 flex flex-col h-1/2 overflow-hidden">
+                    <div class="card" style="height:50%; display:flex; flex-direction:column; overflow:hidden;">
                         <!-- Tabs -->
-                        <div class="flex border-b border-gray-700 mb-2">
+                        <div style="display:flex; border-bottom:1px solid #374151; margin-bottom:0.5rem;">
                             <button @click="activeTab = 'tools'"
-                                :class="{'text-purple-400 border-b-2 border-purple-400': activeTab === 'tools', 'text-gray-500': activeTab !== 'tools'}"
-                                class="pb-1 px-3 text-sm font-medium transition hover:text-gray-300">
+                                :style="{ color: activeTab === 'tools' ? '#c084fc' : '#6b7280', borderBottom: activeTab === 'tools' ? '2px solid #c084fc' : 'none' }"
+                                style="background:none; padding:0.25rem 0.75rem; font-size:0.875rem; font-weight:500; cursor:pointer;">
                                 🔧 Tools
                             </button>
                             <button @click="activeTab = 'vulns'"
-                                :class="{'text-red-400 border-b-2 border-red-400': activeTab === 'vulns', 'text-gray-500': activeTab !== 'vulns'}"
-                                class="pb-1 px-3 text-sm font-medium transition hover:text-gray-300">
-                                🛡️ Vulnerabilities <span v-if="vulnerabilities.length" class="ml-1 bg-red-900 text-red-200 text-[10px] px-1.5 rounded-full">{{ vulnerabilities.length }}</span>
+                                :style="{ color: activeTab === 'vulns' ? '#f87171' : '#6b7280', borderBottom: activeTab === 'vulns' ? '2px solid #f87171' : 'none' }"
+                                style="background:none; padding:0.25rem 0.75rem; font-size:0.875rem; font-weight:500; cursor:pointer;">
+                                🛡️ Vulnerabilities <span v-if="vulnerabilities.length" style="background:#7f1d1d; color:#fecaca; font-size:0.65rem; padding:0.125rem 0.375rem; border-radius:9999px; margin-left:0.25rem;">{{ vulnerabilities.length }}</span>
                             </button>
                         </div>
 
                         <!-- Tool Content -->
-                        <div v-if="activeTab === 'tools'" class="scrollable-list flex-grow space-y-2 pr-1">
-                             <div v-if="toolExecutions.length === 0" class="text-gray-500 text-center mt-10 italic text-sm">
+                        <div v-if="activeTab === 'tools'" style="flex-grow:1; overflow-y:auto; padding-right:0.25rem; display:flex; flex-direction:column; gap:0.5rem;">
+                             <div v-if="toolExecutions.length === 0" style="color:#6b7280; text-align:center; margin-top:2.5rem; font-style:italic; font-size:0.875rem;">
                                 No tools executed yet.
                             </div>
-                            <div v-for="exec in toolExecutions" :key="exec.id" class="bg-gray-900 p-2 rounded border border-gray-700 text-[10px] font-mono hover:bg-gray-800 transition">
-                                <div class="flex justify-between mb-1">
-                                    <span class="text-purple-300 font-bold">{{ exec.tool }}</span>
-                                    <span :class="{
-                                        'text-green-400': exec.status === 'completed',
-                                        'text-red-400': exec.status === 'failed',
-                                        'text-yellow-400': exec.status === 'running'
-                                    }">{{ exec.status }}</span>
+                            <div v-for="exec in toolExecutions" :key="exec.id" style="background:#111827; padding:0.5rem; border-radius:0.25rem; border:1px solid #374151; font-family:monospace; font-size:0.75rem;">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:0.25rem;">
+                                    <span style="color:#d8b4fe; font-weight:bold;">{{ exec.tool }}</span>
+                                    <span :style="{ color: exec.status === 'completed' ? '#4ade80' : (exec.status === 'failed' ? '#f87171' : '#facc15') }">{{ exec.status }}</span>
                                 </div>
-                                <div class="text-gray-400 truncate opacity-80" :title="exec.args">Args: {{ exec.args }}</div>
-                                <div v-if="exec.result" class="text-gray-500 truncate mt-1 border-t border-gray-800 pt-1" :title="exec.result">-> {{ exec.result }}</div>
+                                <div style="color:#9ca3af; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" :title="exec.args">Args: {{ exec.args }}</div>
+                                <div v-if="exec.result" style="color:#6b7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:0.25rem; border-top:1px solid #1f2937; padding-top:0.25rem;" :title="exec.result">-> {{ exec.result }}</div>
                             </div>
                         </div>
 
                         <!-- Vulnerabilities Content -->
-                        <div v-if="activeTab === 'vulns'" class="scrollable-list flex-grow space-y-2 pr-1">
-                            <div v-if="vulnerabilities.length === 0" class="text-gray-500 text-center mt-10 italic text-sm">
+                        <div v-if="activeTab === 'vulns'" style="flex-grow:1; overflow-y:auto; padding-right:0.25rem; display:flex; flex-direction:column; gap:0.5rem;">
+                            <div v-if="vulnerabilities.length === 0" style="color:#6b7280; text-align:center; margin-top:2.5rem; font-style:italic; font-size:0.875rem;">
                                 No vulnerabilities found yet.
                             </div>
-                            <div v-for="vuln in vulnerabilities" :key="vuln.id" class="bg-gray-900 p-3 rounded border border-gray-700 hover:border-red-500 transition cursor-pointer">
-                                <div class="flex justify-between items-start mb-1">
-                                    <h3 class="font-bold text-white text-sm">{{ vuln.title }}</h3>
-                                    <span :class="{
-                                        'bg-red-900 text-red-200': vuln.severity === 'critical',
-                                        'bg-orange-900 text-orange-200': vuln.severity === 'high',
-                                        'bg-yellow-900 text-yellow-200': vuln.severity === 'medium',
-                                        'bg-blue-900 text-blue-200': vuln.severity === 'low'
-                                    }" class="text-[10px] px-1.5 py-0.5 rounded uppercase font-bold">{{ vuln.severity }}</span>
+                            <div v-for="vuln in vulnerabilities" :key="vuln.id" style="background:#111827; padding:0.75rem; border-radius:0.25rem; border:1px solid #374151; cursor:pointer;">
+                                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.25rem;">
+                                    <h3 style="font-weight:bold; color:white; font-size:0.875rem;">{{ vuln.title }}</h3>
+                                    <span :style="{
+                                        backgroundColor: vuln.severity === 'critical' ? '#7f1d1d' : (vuln.severity === 'high' ? '#7c2d12' : (vuln.severity === 'medium' ? '#713f12' : '#1e3a8a')),
+                                        color: vuln.severity === 'critical' ? '#fecaca' : (vuln.severity === 'high' ? '#ffedd5' : (vuln.severity === 'medium' ? '#fef9c3' : '#bfdbfe'))
+                                    }" style="font-size:0.65rem; padding:0.125rem 0.375rem; border-radius:0.25rem; text-transform:uppercase; font-weight:bold;">{{ vuln.severity }}</span>
                                 </div>
-                                <p class="text-xs text-gray-500">{{ vuln.timestamp }}</p>
+                                <p style="font-size:0.75rem; color:#6b7280;">{{ vuln.timestamp }}</p>
                             </div>
                         </div>
                     </div>
@@ -272,8 +375,9 @@
             if (loading && errorContainer && errorMessage) {
                 loadingText.style.display = 'none';
                 errorContainer.classList.remove('hidden');
+                errorContainer.style.display = 'block'; // Ensure inline style
                 errorMessage.textContent = msg;
-                loading.classList.remove('hidden'); // Ensure visible
+                loading.style.display = 'flex'; // Ensure visible
             }
             console.error('Global Error:', msg);
         }
@@ -288,7 +392,7 @@
             try {
                 // Check if Vue is loaded
                 if (typeof Vue === 'undefined') {
-                    throw new Error("Vue.js failed to load. Please check your internet connection or ad blocker.");
+                    throw new Error("Vue.js failed to load. Please check your internet connection.");
                 }
 
                 const { createApp, ref, onMounted, watch } = Vue

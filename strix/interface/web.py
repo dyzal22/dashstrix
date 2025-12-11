@@ -9,6 +9,7 @@ import threading
 from typing import List, Optional
 import uvicorn
 import logging
+import signal
 from pathlib import Path
 from strix.telemetry.tracer import get_global_tracer, Tracer, set_global_tracer
 from strix.interface.main import parse_arguments, display_completion_message, validate_environment, warm_up_llm, check_docker_installed, pull_docker_image
@@ -187,8 +188,10 @@ def run_strix_scan(target: str, instruction: str | None, api_key: str | None, mo
         # Set environment variables for API Key and Model if provided
         if api_key:
             os.environ["LLM_API_KEY"] = api_key
+            print(f"Set LLM_API_KEY: {api_key[:5]}...") # Log masked key for debugging
         if model:
             os.environ["STRIX_LLM"] = model
+            print(f"Set STRIX_LLM: {model}")
 
         # FORCE LOCAL RUNTIME
         os.environ["STRIX_RUNTIME_BACKEND"] = "local"
@@ -201,6 +204,15 @@ def run_strix_scan(target: str, instruction: str | None, api_key: str | None, mo
         # Async setup
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+
+        # Patch signal to avoid ValueError in thread
+        _original_signal = signal.signal
+        def _patched_signal(sig, handler):
+            if threading.current_thread() != threading.main_thread():
+                return None
+            return _original_signal(sig, handler)
+
+        signal.signal = _patched_signal
 
         # loop.run_until_complete(warm_up_llm())
 
