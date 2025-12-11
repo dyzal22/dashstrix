@@ -35,7 +35,8 @@ include = [
   "README.md",
   "strix/**/*.jinja",
   "strix/**/*.xml",
-  "strix/**/*.tcss"
+  "strix/**/*.tcss",
+  "strix/interface/assets/**/*"
 ]
 
 [tool.poetry.scripts]
