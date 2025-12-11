@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DashStrix</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/vue@3.4.19/dist/vue.global.js" crossorigin="anonymous"></script>
     <style>
         .terminal {
             background-color: #1e1e1e;
@@ -53,11 +53,15 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
     <!-- Loading indicator -->
-    <div id="loading-indicator" class="fixed inset-0 flex items-center justify-center bg-gray-900 z-50">
-        <div class="text-xl font-bold animate-pulse text-green-500">Loading DashStrix...</div>
+    <div id="loading-indicator" class="fixed inset-0 flex flex-col items-center justify-center bg-gray-900 z-50">
+        <div id="loading-text" class="text-xl font-bold animate-pulse text-green-500">Loading DashStrix...</div>
+        <div id="error-container" class="hidden mt-4 p-4 bg-red-900/50 border border-red-500 rounded max-w-lg text-center">
+            <h3 class="text-red-400 font-bold mb-2">Application Failed to Start</h3>
+            <p id="error-message" class="text-white text-sm"></p>
+        </div>
     </div>
 
-    <div id="app" class="container mx-auto px-4 py-8" v-cloak>
+    <div id="app" class="container mx-auto px-4 py-8" style="display: none;" :style="{ display: 'block' }">
         <header class="flex items-center justify-between mb-8">
             <div class="flex items-center">
                 <h1 class="text-3xl font-bold text-green-500 mr-4">DashStrix</h1>
@@ -118,11 +122,11 @@
                 <h2 class="text-xl font-semibold mb-4 text-green-400 flex items-center">
                     <span class="mr-2">💬</span> Agent Chat
                 </h2>
-                <div class="chat-history flex flex-col" ref="chatHistory">
-                    <div v-if="chatHistory.length === 0" class="text-gray-500 text-center mt-10 italic">
+                <div class="chat-history flex flex-col" ref="chatContainer">
+                    <div v-if="chatMessages.length === 0" class="text-gray-500 text-center mt-10 italic">
                         No messages yet.
                     </div>
-                    <div v-for="msg in chatHistory" :key="msg.message_id"
+                    <div v-for="msg in chatMessages" :key="msg.message_id"
                         class="chat-message"
                         :class="msg.role === 'user' ? 'chat-user' : 'chat-agent'">
                         <div class="text-xs text-gray-400 mb-1">{{ msg.role === 'user' ? 'You' : 'Agent' }}</div>
@@ -206,187 +210,205 @@
 
     <script>
         // Global error handler
-        window.onerror = function(msg, url, line, col, error) {
+        function showError(msg) {
             const loading = document.getElementById('loading-indicator');
-            if (loading) {
-                loading.innerHTML = `<div class="text-red-500 text-center p-4 bg-gray-800 rounded">
-                    <h2 class="text-xl font-bold mb-2">Application Error</h2>
-                    <p>${msg}</p>
-                    <p class="text-sm text-gray-400 mt-2">See console for details.</p>
-                </div>`;
-                loading.classList.remove('animate-pulse');
+            const errorContainer = document.getElementById('error-container');
+            const errorMessage = document.getElementById('error-message');
+            const loadingText = document.getElementById('loading-text');
+
+            if (loading && errorContainer && errorMessage) {
+                loadingText.style.display = 'none';
+                errorContainer.classList.remove('hidden');
+                errorMessage.textContent = msg;
+                loading.classList.remove('hidden'); // Ensure visible
             }
-            console.error('Global Error:', msg, error);
+            console.error('Global Error:', msg);
+        }
+
+        window.onerror = function(msg, url, line, col, error) {
+            showError(msg);
             return false;
         };
 
-        const { createApp, ref, onMounted, watch } = Vue
+        // Wrap initialization in a try-catch block
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // Check if Vue is loaded
+                if (typeof Vue === 'undefined') {
+                    throw new Error("Vue.js failed to load. Please check your internet connection or ad blocker.");
+                }
 
-        createApp({
-            setup() {
-                const target = ref('')
-                const instruction = ref('')
-                const apiKey = ref('')
-                const model = ref('gemini/gemini-1.5-pro')
-                const loading = ref(false)
-                const logs = ref([])
-                const vulnerabilities = ref([])
-                const activities = ref([])
-                const toolExecutions = ref([])
-                const chatHistory = ref([])
-                const chatInput = ref('')
-                const status = ref('idle')
-                const logContainer = ref(null)
-                const chatHistoryRef = ref(null)
-                let pollInterval = null
+                const { createApp, ref, onMounted, watch } = Vue
 
-                onMounted(() => {
-                    // Hide loading indicator when Vue mounts
-                    const loadingEl = document.getElementById('loading-indicator');
-                    if (loadingEl) loadingEl.style.display = 'none';
-                });
+                createApp({
+                    setup() {
+                        const target = ref('')
+                        const instruction = ref('')
+                        const apiKey = ref('')
+                        const model = ref('gemini/gemini-1.5-pro')
+                        const loading = ref(false)
+                        const logs = ref([])
+                        const vulnerabilities = ref([])
+                        const activities = ref([])
+                        const toolExecutions = ref([])
+                        const chatMessages = ref([])
+                        const chatInput = ref('')
+                        const status = ref('idle')
+                        const logContainer = ref(null)
+                        const chatContainer = ref(null)
+                        let pollInterval = null
 
-                const startScan = async () => {
-                    try {
-                        loading.value = true
-                        status.value = 'starting'
-                        logs.value = ['Starting scan...']
-                        vulnerabilities.value = []
-                        activities.value = []
-                        toolExecutions.value = []
-                        chatHistory.value = []
+                        onMounted(() => {
+                            // Hide loading indicator when Vue mounts
+                            const loadingEl = document.getElementById('loading-indicator');
+                            if (loadingEl) loadingEl.style.display = 'none';
+                        });
 
-                        const response = await fetch('/api/scan/start', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                target: target.value,
-                                instruction: instruction.value,
-                                api_key: apiKey.value,
-                                model: model.value
-                            })
-                        })
+                        const startScan = async () => {
+                            try {
+                                loading.value = true
+                                status.value = 'starting'
+                                logs.value = ['Starting scan...']
+                                vulnerabilities.value = []
+                                activities.value = []
+                                toolExecutions.value = []
+                                chatMessages.value = []
 
-                        if (!response.ok) {
-                            throw new Error('Failed to start scan')
+                                const response = await fetch('/api/scan/start', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        target: target.value,
+                                        instruction: instruction.value,
+                                        api_key: apiKey.value,
+                                        model: model.value
+                                    })
+                                })
+
+                                if (!response.ok) {
+                                    throw new Error('Failed to start scan')
+                                }
+
+                                startPolling()
+                            } catch (e) {
+                                console.error(e)
+                                logs.value.push(`Error: ${e.message}`)
+                                loading.value = false
+                                status.value = 'error'
+                            }
                         }
 
-                        startPolling()
-                    } catch (e) {
-                        console.error(e)
-                        logs.value.push(`Error: ${e.message}`)
-                        loading.value = false
-                        status.value = 'error'
-                    }
-                }
-
-                const stopScan = async () => {
-                    try {
-                        await fetch('/api/scan/stop', { method: 'POST' })
-                        loading.value = false
-                        stopPolling()
-                        logs.value.push('Scan stopped by user.')
-                    } catch (e) {
-                        console.error(e)
-                    }
-                }
-
-                const sendMessage = async () => {
-                    if (!chatInput.value.trim()) return
-
-                    const message = chatInput.value
-                    chatInput.value = ''
-
-                    // Optimistic update
-                    chatHistory.value.push({ role: 'user', content: message, message_id: 'temp-' + Date.now() })
-
-                    try {
-                        await fetch('/api/scan/chat', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ message })
-                        })
-                    } catch (e) {
-                        console.error('Failed to send message', e)
-                        logs.value.push('Failed to send message: ' + e.message)
-                    }
-                }
-
-                const pollStatus = async () => {
-                    try {
-                        const response = await fetch('/api/scan/status')
-                        const data = await response.json()
-
-                        loading.value = data.running
-                        status.value = data.status
-                        vulnerabilities.value = data.vulnerabilities || []
-                        activities.value = data.activities || []
-                        toolExecutions.value = data.tool_executions || []
-                        chatHistory.value = data.chat_history || []
-
-                        if (data.logs && data.logs.length > 0) {
-                             logs.value = data.logs
+                        const stopScan = async () => {
+                            try {
+                                await fetch('/api/scan/stop', { method: 'POST' })
+                                loading.value = false
+                                stopPolling()
+                                logs.value.push('Scan stopped by user.')
+                            } catch (e) {
+                                console.error(e)
+                            }
                         }
 
-                        if (!data.running && data.status !== 'starting') {
+                        const sendMessage = async () => {
+                            if (!chatInput.value.trim()) return
+
+                            const message = chatInput.value
+                            chatInput.value = ''
+
+                            // Optimistic update
+                            chatMessages.value.push({ role: 'user', content: message, message_id: 'temp-' + Date.now() })
+
+                            try {
+                                await fetch('/api/scan/chat', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ message })
+                                })
+                            } catch (e) {
+                                console.error('Failed to send message', e)
+                                logs.value.push('Failed to send message: ' + e.message)
+                            }
+                        }
+
+                        const pollStatus = async () => {
+                            try {
+                                const response = await fetch('/api/scan/status')
+                                const data = await response.json()
+
+                                loading.value = data.running
+                                status.value = data.status
+                                vulnerabilities.value = data.vulnerabilities || []
+                                activities.value = data.activities || []
+                                toolExecutions.value = data.tool_executions || []
+                                chatMessages.value = data.chat_history || []
+
+                                if (data.logs && data.logs.length > 0) {
+                                     logs.value = data.logs
+                                }
+
+                                if (!data.running && data.status !== 'starting') {
+                                    stopPolling()
+                                }
+                            } catch (e) {
+                                console.error('Polling error', e)
+                            }
+                        }
+
+                        const startPolling = () => {
                             stopPolling()
+                            pollInterval = setInterval(pollStatus, 2000)
                         }
-                    } catch (e) {
-                        console.error('Polling error', e)
+
+                        const stopPolling = () => {
+                            if (pollInterval) {
+                                clearInterval(pollInterval)
+                                pollInterval = null
+                            }
+                        }
+
+                        // Auto-scroll logs
+                        watch(logs, () => {
+                            if (logContainer.value) {
+                                 setTimeout(() => {
+                                    logContainer.value.scrollTop = logContainer.value.scrollHeight
+                                 }, 100)
+                            }
+                        }, { deep: true })
+
+                        // Auto-scroll chat
+                        watch(chatMessages, () => {
+                            if (chatContainer.value) {
+                                 setTimeout(() => {
+                                    chatContainer.value.scrollTop = chatContainer.value.scrollHeight
+                                 }, 100)
+                            }
+                        }, { deep: true })
+
+                        return {
+                            target,
+                            instruction,
+                            apiKey,
+                            model,
+                            loading,
+                            logs,
+                            vulnerabilities,
+                            activities,
+                            toolExecutions,
+                            chatMessages,
+                            chatInput,
+                            status,
+                            startScan,
+                            stopScan,
+                            sendMessage,
+                            logContainer,
+                            chatContainer
+                        }
                     }
-                }
-
-                const startPolling = () => {
-                    stopPolling()
-                    pollInterval = setInterval(pollStatus, 2000)
-                }
-
-                const stopPolling = () => {
-                    if (pollInterval) {
-                        clearInterval(pollInterval)
-                        pollInterval = null
-                    }
-                }
-
-                // Auto-scroll logs
-                watch(logs, () => {
-                    if (logContainer.value) {
-                         setTimeout(() => {
-                            logContainer.value.scrollTop = logContainer.value.scrollHeight
-                         }, 100)
-                    }
-                }, { deep: true })
-
-                // Auto-scroll chat
-                watch(chatHistory, () => {
-                    if (chatHistoryRef.value) {
-                         setTimeout(() => {
-                            // chatHistoryRef.value.scrollTop = chatHistoryRef.value.scrollHeight
-                         }, 100)
-                    }
-                }, { deep: true })
-
-                return {
-                    target,
-                    instruction,
-                    apiKey,
-                    model,
-                    loading,
-                    logs,
-                    vulnerabilities,
-                    activities,
-                    toolExecutions,
-                    chatHistory,
-                    chatInput,
-                    status,
-                    startScan,
-                    stopScan,
-                    sendMessage,
-                    logContainer,
-                    chatHistory: chatHistoryRef
-                }
+                }).mount('#app')
+            } catch (e) {
+                showError("Initialization Error: " + e.message);
             }
-        }).mount('#app')
+        });
     </script>
 </body>
 </html>
